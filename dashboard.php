@@ -22,6 +22,17 @@ function decrypt($cipherData, $key, $iv){
     return openssl_decrypt($cipherData, 'AES-256-CBC', $key, 0, $iv);
 }
 
+// 检查是否已存在
+function checkifexsits($conn, $user_id, $platform_name, $platform_address, $account){
+    $query_res = $conn->query("SELECT * FROM passwords WHERE user_id='$user_id' AND (platform_name = '$platform_name' AND platform_address = '$platform_address' OR account = '$account')");
+    $account_num = $query_res->num_rows;
+    if ($account_num > 0) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 // 修改用户密码
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_password'])) {
     $new_password = $_POST['new_password'];
@@ -39,9 +50,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_password'])) {
     $platform_name = $_POST['platform_name'];
     $platform_address = $_POST['platform_address'];
     $account = $_POST['account'];
-    $iv = substr(md5($account), 0 , openssl_cipher_iv_length($encrpt_method));
-    $password = encrypt($_POST['password'], $secret_key, $iv);
-    $conn->query("INSERT INTO passwords (user_id, platform_name, platform_address, account, password) VALUES ('$user_id', '$platform_name', '$platform_address', '$account', '$password')");
+
+    $account_exists = checkifexsits($conn, $user_id, $platform_name, $platform_address, $account);
+    if ($account_exists){
+        echo "<script>alert('账号已存在,请直接修改！')</script>";
+    }else{
+        $iv = substr(md5($account), 0 , openssl_cipher_iv_length($encrpt_method));
+        $password = encrypt($_POST['password'], $secret_key, $iv);
+        $conn->query("INSERT INTO passwords (user_id, platform_name, platform_address, account, password) VALUES ('$user_id', '$platform_name', '$platform_address', '$account', '$password')");
+    }
 }
 
 // 删除密码
@@ -70,8 +87,11 @@ $search_query = '';
 $passwords = [];
 $search_result_count = 0;
 // $current_tab = 'home'; // 默认选项卡
+if (isset($_POST['add_password'])){
+    $current_tab = 'addAccount';
+} else {
 $current_tab = 'myAccounts'; // 默认选项卡
-
+}
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
     $search_query = $_POST['search_query'];
@@ -152,6 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
                 </div>
             </div>
 
+            <!-- 添加账号 -->
             <div id="addAccount" class="tab-pane fade <?php echo $current_tab == 'addAccount' ? 'show active' : ''; ?>">
                 <div class="card">
                     <div class="card-header">
@@ -173,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
                             </div>
                             <div class="form-group">
                                 <label for="password">密码</label>
-                                <input type="text" class="form-control" id="password" name="password" required>
+                                <input type="password" class="form-control" id="password" name="password" required>
                             </div>
                             <button type="submit" name="add_password" class="btn btn-primary btn-block">添加账号</button>
                         </form>
@@ -181,6 +202,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
                 </div>
             </div>
 
+            <!-- 显示账号信息 -->
             <div id="myAccounts" class="tab-pane fade <?php echo $current_tab == 'myAccounts' ? 'show active' : ''; ?>">
                 <div class="card">
                     <div class="card-header">
@@ -287,7 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
                                                             </div>
                                                             <div class="form-group">
                                                                 <label for="edit_password">密码</label>
-                                                                <input type="text" class="form-control" id="edit_password" name="password" value="<?php $iv = substr(md5(htmlspecialchars($row['account'])), 0 , openssl_cipher_iv_length($encrpt_method)); echo decrypt(htmlspecialchars($row['password']), $secret_key, $iv); ?>" required>
+                                                                <input type="password" class="form-control" id="edit_password" name="password" value="<?php $iv = substr(md5(htmlspecialchars($row['account'])), 0 , openssl_cipher_iv_length($encrpt_method)); echo decrypt(htmlspecialchars($row['password']), $secret_key, $iv); ?>" required>
                                                             </div>
                                                         </div>
                                                         <div class="modal-footer">
@@ -306,6 +328,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
                 </div>
             </div>
 
+            <!-- 修改密码 -->
             <div id="changePassword" class="tab-pane fade <?php echo $current_tab == 'changePassword' ? 'show active' : ''; ?>">
                 <div class="card">
                     <div class="card-header">
@@ -318,7 +341,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
                         <form method="post">
                             <div class="form-group">
                                 <label for="new_password">新密码</label>
-                                <input type="text" class="form-control" id="new_password" name="new_password" required> <!-- 明文输入 -->
+                                <input type="password" class="form-control" id="new_password" name="new_password" required> <!-- 明文输入 -->
                             </div>
                             <button type="submit" name="update_password" class="btn btn-primary btn-block">更新密码</button>
                         </form>
@@ -329,6 +352,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
         </div>
     </div>
 
+    <p>
     <footer class="bg-light text-center text-lg-start">
         <div class="text-center p-3" style="background-color: rgba(0,0, 0, 0.1);">
             ©2023 密码管理器. 保留所有权利.
