@@ -4,6 +4,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $db_user = $_POST['db_user'];
     $db_pass = $_POST['db_pass'];
     $db_name = $_POST['db_name'];
+    $secret_key = $_POST['secret_key'];
 
     // 创建数据库连接
     $conn = new mysqli($db_host, $db_user, $db_pass);
@@ -30,7 +31,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         platform_address VARCHAR(255),
         account VARCHAR(100),
         password VARCHAR(255),
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE KEY (user_id, platform_name, account)
     )";
 
     $conn->query($sql_users);
@@ -47,10 +49,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         . "\$db_user = '$db_user';\n"
         . "\$db_pass = '$db_pass';\n"
         . "\$db_name = '$db_name';\n"
+        . "\$secret_key = '$secret_key';\n"
         . "\$conn = new mysqli(\$db_host, \$db_user, \$db_pass, \$db_name);\n"
         . "if (\$conn->connect_error) {\n"
         . "    die(\"Connection failed: \" . \$conn->connect_error);\n"
-        . "}\n";
+        . "}\n"
+        . "?>\n";
 
     file_put_contents('config.php', $config_content);
     
@@ -86,6 +90,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <input type="text" class="form-control" id="db_name" name="db_name" required>
         </div>
         <div class="form-group">
+            <label for="secret_key">秘钥</label>
+            <input type="text" class="form-control" id="secret_key" name="secret_key" required>
+        </div>
+        <div class="form-group">
             <label for="admin_username">管理员用户名</label>
             <input type="text" class="form-control" id="admin_username" name="admin_username" required>
         </div>
@@ -93,6 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <label for="admin_password">管理员密码</label>
             <input type="password" class="form-control" id="admin_password" name="admin_password" required>
         </div>
+
         <button type="submit" class="btn btn-primary">安装</button>
     </form>
 </div>
