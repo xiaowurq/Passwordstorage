@@ -11,6 +11,17 @@ $user_id = $_SESSION['user_id'];
 $role = $_SESSION['role'];
 $password_update_message = "";
 
+$encrpt_method = 'AES-256-CBC';
+
+// 密码加解密 明文|密文 秘钥 偏移量
+function encrypt($plainData, $key, $iv){
+    return openssl_encrypt($plainData, 'AES-256-CBC', $key, 0 , $iv);
+}
+
+function decrypt($cipherData, $key, $iv){
+    return openssl_decrypt($cipherData, 'AES-256-CBC', $key, 0, $iv);
+}
+
 // 修改用户密码
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_password'])) {
     $new_password = $_POST['new_password'];
@@ -26,9 +37,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_password'])) {
 // 添加密码
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_password'])) {
     $platform_name = $_POST['platform_name'];
-    $platform_address = $_POST['platform'];
+    $platform_address = $_POST['platform_address'];
     $account = $_POST['account'];
-    $password = $_POST['password'];
+    $iv = substr(md5($account), 0 , openssl_cipher_iv_length($encrpt_method));
+    $password = encrypt($_POST['password'], $secret_key, $iv);
     $conn->query("INSERT INTO passwords (user_id, platform_name, platform_address, account, password) VALUES ('$user_id', '$platform_name', '$platform_address', '$account', '$password')");
 }
 
@@ -46,7 +58,8 @@ if (isset($_POST['edit_password'])) {
     $platform_name = $_POST['platform_name'];
     $platform_address = $_POST['platform_address'];
     $account = $_POST['account'];
-    $password = $_POST['password'];
+    $iv = substr(md5($account), 0 , openssl_cipher_iv_length($encrpt_method));
+    $password = encrypt($_POST['password'], $secret_key, $iv);
     $conn->query("UPDATE passwords SET platform_name='$platform_name', platform_address='$platform_address', account='$account', password='$password' WHERE id='$id' AND user_id='$user_id'");
     header("Location: dashboard.php");
     exit;
@@ -56,7 +69,9 @@ if (isset($_POST['edit_password'])) {
 $search_query = '';
 $passwords = [];
 $search_result_count = 0;
-$current_tab = 'home'; // 默认选项卡
+// $current_tab = 'home'; // 默认选项卡
+$current_tab = 'myAccounts'; // 默认选项卡
+
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
     $search_query = $_POST['search_query'];
@@ -83,6 +98,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
         }
         .content {
             flex: 1;
+        }
+        .display{
+            /* visibility: hidden; */
         }
     </style>
     <title>用户仪表板</title>
@@ -206,12 +224,41 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
                                                 <a href="<?php echo htmlspecialchars($row['platform_address']); ?>" target="_blank" class="btn btn-link">立即跳转</a>
                                             </td>
                                             <td><?php echo htmlspecialchars($row['account']); ?></td>
-                                            <td><?php echo htmlspecialchars($row['password']); ?></td>
+                                            <td class="display">
+                                            <?php echo md5(htmlspecialchars($row['password'])); ?>
+                                            <button class="btn btn-warning btn-sm" data-toggle="modal" data-target="#showPasswordModal<?php echo $row['id']; ?>"> 展示</button>
+                                            </td>
                                             <td>
                                                 <button class="btn btn-warning btn-sm" data-toggle="modal" data-target="#editModal<?php echo $row['id']; ?>">编辑</button>
                                                 <a href="?delete_id=<?php echo $row['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('确定要删除吗？');">删除</a>
                                             </td>
                                         </tr>
+
+                                        
+                                        <!-- 显示密码 -->
+                                        <div class="modal fade" id="showPasswordModal<?php echo $row['id']; ?>" tabindex="-1" role="dialog" aria-labelledby="showPasswordModalLabel" aria-hidden="true">
+                                            <div class="modal-dialog" role="document">
+                                                <div class="modal-content">
+                                                    <form method="post">
+                                                        <div class="modal-header">
+                                                            <h5 class="modal-title" id="editModalLabel">密码</h5>
+                                                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                                                <span aria-hidden="true">&times;</span>
+                                                            </button>
+                                                        </div>
+                                                        <div class="modal-body">
+                                                            <div class="form-group">
+                                                                <label for="edit_password">密码</label>
+                                                                <input type="text" class="form-control" id="edit_password" name="password"  readonly="readonly" value="<?php $iv = substr(md5(htmlspecialchars($row['account'])), 0 , openssl_cipher_iv_length($encrpt_method)); echo decrypt(htmlspecialchars($row['password']), $secret_key, $iv); ?>" required>
+                                                            </div>
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <button type="button" class="btn btn-secondary" data-dismiss="modal">关闭</button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                        </div>
 
                                         <!-- 编辑模态框 -->
                                         <div class="modal fade" id="editModal<?php echo $row['id']; ?>" tabindex="-1" role="dialog" aria-labelledby="editModalLabel" aria-hidden="true">
@@ -240,7 +287,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
                                                             </div>
                                                             <div class="form-group">
                                                                 <label for="edit_password">密码</label>
-                                                                <input type="text" class="form-control" id="edit_password" name="password" value="<?php echo htmlspecialchars($row['password']); ?>" required>
+                                                                <input type="text" class="form-control" id="edit_password" name="password" value="<?php $iv = substr(md5(htmlspecialchars($row['account'])), 0 , openssl_cipher_iv_length($encrpt_method)); echo decrypt(htmlspecialchars($row['password']), $secret_key, $iv); ?>" required>
                                                             </div>
                                                         </div>
                                                         <div class="modal-footer">
