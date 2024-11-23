@@ -24,7 +24,7 @@ function decrypt($cipherData, $key, $iv){
 
 // 检查是否已存在
 function checkifexsits($conn, $user_id, $platform_name, $platform_address, $account){
-    $query_res = $conn->query("SELECT * FROM passwords WHERE user_id='$user_id' AND (platform_name = '$platform_name' AND platform_address = '$platform_address' OR account = '$account')");
+    $query_res = $conn->query("SELECT * FROM passwords WHERE user_id='$user_id' AND (platform_name = '$platform_name' AND platform_address = '$platform_address' AND account = '$account')");
     $account_num = $query_res->num_rows;
     if ($account_num > 0) {
         return true;
