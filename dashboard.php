@@ -18,6 +18,7 @@ function encrypt($plainData, $key, $iv){
     return openssl_encrypt($plainData, 'AES-256-CBC', $key, 0 , $iv);
 }
 
+// 密码解密函数
 function decrypt($cipherData, $key, $iv){
     return openssl_decrypt($cipherData, 'AES-256-CBC', $key, 0, $iv);
 }
@@ -25,8 +26,8 @@ function decrypt($cipherData, $key, $iv){
 // 检查是否已存在
 function checkifexsits($conn, $user_id, $platform_name, $platform_address, $account){
     $query_res = $conn->query("SELECT * FROM passwords WHERE user_id='$user_id' AND (platform_name = '$platform_name' AND platform_address = '$platform_address' AND account = '$account')");
-    $account_num = $query_res->num_rows;
-    if ($account_num > 0) {
+    $account_num = $query_res->fetchArray();
+    if ($account_num) {
         return true;
     } else {
         return false;
@@ -37,7 +38,7 @@ function checkifexsits($conn, $user_id, $platform_name, $platform_address, $acco
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_password'])) {
     $new_password = $_POST['new_password'];
     $hashed_password = password_hash($new_password, PASSWORD_DEFAULT); // 加密密码
-    $conn->query("UPDATE users SET password='$hashed_password' WHERE id='$user_id'");
+    $conn->exec("UPDATE users SET password='$hashed_password' WHERE id='$user_id'");
 
     // 注销用户会话
     session_destroy();
@@ -50,34 +51,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_password'])) {
     $platform_name = $_POST['platform_name'];
     $platform_address = $_POST['platform_address'];
     $account = $_POST['account'];
-
+    $other_info = $_POST['other_info']; // 新增字段
     $account_exists = checkifexsits($conn, $user_id, $platform_name, $platform_address, $account);
     if ($account_exists){
         echo "<script>alert('账号已存在,请直接修改！')</script>";
     }else{
         $iv = substr(md5($account), 0 , openssl_cipher_iv_length($encrpt_method));
         $password = encrypt($_POST['password'], $secret_key, $iv);
-        $conn->query("INSERT INTO passwords (user_id, platform_name, platform_address, account, password) VALUES ('$user_id', '$platform_name', '$platform_address', '$account', '$password')");
+        $conn->exec("INSERT INTO passwords (user_id, platform_name, platform_address, account, password, other_info) VALUES ('$user_id', '$platform_name', '$platform_address', '$account', '$password', '$other_info')"); // 修改插入语句
     }
 }
 
 // 删除密码
 if (isset($_GET['delete_id'])) {
     $delete_id = $_GET['delete_id'];
-    $conn->query("DELETE FROM passwords WHERE id='$delete_id' AND user_id='$user_id'");
+    $conn->exec("DELETE FROM passwords WHERE id='$delete_id' AND user_id='$user_id'");
     header("Location: dashboard.php");
     exit;
 }
 
 // 编辑密码
-if (isset($_POST['edit_password'])) {
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_password'])) {
     $id = $_POST['id'];
     $platform_name = $_POST['platform_name'];
     $platform_address = $_POST['platform_address'];
     $account = $_POST['account'];
+    $other_info = $_POST['other_info']; // 新增字段
     $iv = substr(md5($account), 0 , openssl_cipher_iv_length($encrpt_method));
     $password = encrypt($_POST['password'], $secret_key, $iv);
-    $conn->query("UPDATE passwords SET platform_name='$platform_name', platform_address='$platform_address', account='$account', password='$password' WHERE id='$id' AND user_id='$user_id'");
+    $conn->exec("UPDATE passwords SET platform_name='$platform_name', platform_address='$platform_address', account='$account', password='$password', other_info='$other_info' WHERE id='$id' AND user_id='$user_id'"); // 修改更新语句
     header("Location: dashboard.php");
     exit;
 }
@@ -87,10 +89,10 @@ $search_query = '';
 $passwords = [];
 $search_result_count = 0;
 // $current_tab = 'home'; // 默认选项卡
-if (isset($_POST['add_password'])){
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_password'])){
     $current_tab = 'addAccount';
 } else {
-$current_tab = 'myAccounts'; // 默认选项卡
+    $current_tab = 'myAccounts'; // 默认选项卡
 }
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
@@ -196,6 +198,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
                                 <label for="password">密码</label>
                                 <input type="password" class="form-control" id="password" name="password" required>
                             </div>
+                            <div class="form-group">
+                                <label for="other_info">其他信息</label>
+                                <input type="text" class="form-control" id="other_info" name="other_info">
+                            </div>
                             <button type="submit" name="add_password" class="btn btn-primary btn-block">添加账号</button>
                         </form>
                     </div>
@@ -238,7 +244,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
                                 </thead>
                                 <tbody>
                                     <?php $index = 1; ?>
-                                    <?php while ($row = $passwords->fetch_assoc()) : ?>
+                                    <?php while ($row = $passwords->fetchArray(SQLITE3_ASSOC)) : ?>
                                         <tr>
                                             <td><?php echo $index++; ?></td>
                                             <td><?php echo htmlspecialchars($row['platform_name']); ?></td>
@@ -311,6 +317,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
                                                                 <label for="edit_password">密码</label>
                                                                 <input type="password" class="form-control" id="edit_password" name="password" value="<?php $iv = substr(md5(htmlspecialchars($row['account'])), 0 , openssl_cipher_iv_length($encrpt_method)); echo decrypt(htmlspecialchars($row['password']), $secret_key, $iv); ?>" required>
                                                             </div>
+                                                            <div class="form-group">
+                                                                <label for="edit_other_info">其他信息</label>
+                                                                <input type="text" class="form-control" id="edit_other_info" name="other_info" value="<?php echo htmlspecialchars($row['other_info']); ?>" required>
+                                                            </div>
                                                         </div>
                                                         <div class="modal-footer">
                                                             <button type="button" class="btn btn-secondary" data-dismiss="modal">关闭</button>
@@ -355,7 +365,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['search'])) {
     <p>
     <footer class="bg-light text-center text-lg-start">
         <div class="text-center p-3" style="background-color: rgba(0,0, 0, 0.1);">
-            ©2023 密码管理器. 保留所有权利.
+            ©2025 密码管理器. 保留所有权利.
         </div>
     </footer>
 

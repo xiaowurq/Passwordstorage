@@ -7,14 +7,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $password = $_POST['password'];
 
     $result = $conn->query("SELECT * FROM users WHERE username='$username'");
-    if ($result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-        if (password_verify($password, $user['password'])) {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['role'] = $user['role'];
-            header('Location: dashboard.php');
-            exit;
-        }
+    $user = $result->fetchArray();
+    if ($user && password_verify($password, $user['password'])) {
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['role'] = $user['role'];
+        header('Location: dashboard.php');
+        exit;
     }
     echo "<div class='alert alert-danger'>用户名或密码错误！</div>";
 }

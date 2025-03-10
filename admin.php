@@ -12,7 +12,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     $username = $_POST['username'];
     $password = password_hash($_POST['password'], PASSWORD_BCRYPT);
     $role = $_POST['role'];
-    $conn->query("INSERT INTO users (username, password, role) VALUES ('$username', '$password', '$role')");
+    $conn->exec("INSERT INTO users (username, password, role) VALUES ('$username', '$password', '$role')");
 }
 
 // 处理删除用户
@@ -21,11 +21,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     
     // 查询用户角色
     $result = $conn->query("SELECT role FROM users WHERE id = $userId");
-    $user = $result->fetch_assoc();
+    $user = $result->fetchArray();
 
     // 如果角色不是管理员，执行删除
     if ($user && $user['role'] !== 'admin') {
-        $conn->query("DELETE FROM users WHERE id = $userId");
+        $conn->exec("DELETE FROM users WHERE id = $userId");
     }
 }
 
@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['action']) && $_POST['a
     $newPassword = password_hash($_POST['new_password'], PASSWORD_BCRYPT);
     
     // 更新密码
-    $conn->query("UPDATE users SET password = '$newPassword' WHERE id = $userId");
+    $conn->exec("UPDATE users SET password = '$newPassword' WHERE id = $userId");
 }
 
 // 获取用户列表
@@ -83,7 +83,7 @@ $users = $conn->query("SELECT * FROM users");
             </tr>
         </thead>
         <tbody>
-            <?php while ($row = $users->fetch_assoc()): ?>
+            <?php while ($row = $users->fetchArray()): ?>
             <tr>
                 <td><?php echo $row['id']; ?></td>
                 <td><?php echo $row['username']; ?></td>

@@ -1,66 +1,64 @@
 <?php
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $db_host = $_POST['db_host'];
-    $db_user = $_POST['db_user'];
-    $db_pass = $_POST['db_pass'];
-    $db_name = $_POST['db_name'];
+    // 生成随机数据库名称
+    // $db_name = 'password_storage_' . bin2hex(random_bytes(8));
+    $db_name = bin2hex(random_bytes(8));
     $secret_key = $_POST['secret_key'];
 
-    // 创建数据库连接
-    $conn = new mysqli($db_host, $db_user, $db_pass);
-    if ($conn->connect_error) {
-        die("Connection failed: " . $conn->connect_error);
+    // 检查 SQLite3 扩展是否已启用
+    if (!class_exists('SQLite3')) {
+        die("Error: SQLite3 extension is not enabled. Please enable it in your PHP configuration.");
     }
 
-    // 创建数据库
-    $conn->query("CREATE DATABASE IF NOT EXISTS $db_name");
-    $conn->select_db($db_name);
+    // 创建 SQLite3 数据库连接
+    $conn = new SQLite3($db_name . '.db');
+    if (!$conn) {
+        die("Connection failed: " . $conn->lastErrorMsg());
+    }
 
-    // 创建表
+    // 创建用户和密码表
     $sql_users = "CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        username VARCHAR(50) NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        role ENUM('admin', 'user') DEFAULT 'user'
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        password TEXT NOT NULL,
+        role TEXT DEFAULT 'user'
     )";
 
     $sql_passwords = "CREATE TABLE IF NOT EXISTS passwords (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT,
-        platform_name VARCHAR(100),
-        platform_address VARCHAR(255),
-        account VARCHAR(100),
-        password VARCHAR(255),
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        UNIQUE KEY (user_id, platform_name, account)
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        platform_name TEXT,
+        platform_address TEXT,
+        account TEXT,
+        password TEXT,
+        other_info TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )";
 
-    $conn->query($sql_users);
-    $conn->query($sql_passwords);
+    $conn->exec($sql_users);
+    $conn->exec($sql_passwords);
 
-    // 添加管理员
+    // 创建管理员账户
     $admin_username = $_POST['admin_username'];
     $admin_password = password_hash($_POST['admin_password'], PASSWORD_BCRYPT);
-    $conn->query("INSERT INTO users (username, password, role) VALUES ('$admin_username', '$admin_password', 'admin')");
+    $conn->exec("INSERT INTO users (username, password, role) VALUES ('$admin_username', '$admin_password', 'admin')");
 
-    // 保存数据库配置
+    // 将数据库配置写入文件
     $config_content = "<?php\n"
-        . "\$db_host = '$db_host';\n"
-        . "\$db_user = '$db_user';\n"
-        . "\$db_pass = '$db_pass';\n"
         . "\$db_name = '$db_name';\n"
         . "\$secret_key = '$secret_key';\n"
-        . "\$conn = new mysqli(\$db_host, \$db_user, \$db_pass, \$db_name);\n"
-        . "if (\$conn->connect_error) {\n"
-        . "    die(\"Connection failed: \" . \$conn->connect_error);\n"
+        . "\$conn = new SQLite3(\$db_name . '.db');\n"
+        . "if (!\$conn) {\n"
+        . "    die(\"Connection failed: \" . \$conn->lastErrorMsg());\n"
         . "}\n"
         . "?>\n";
 
     file_put_contents('config.php', $config_content);
-    
+
     echo "<div class='alert alert-success'>安装成功！请访问 <a href='login.php'>登录页面</a></div>";
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="zh">
 <head>
@@ -72,25 +70,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <body class="bg-light">
 <div class="container">
     <h1 class="mt-5">安装数据库</h1>
+    <?php
+    if (file_exists('config.php')) {
+        echo "<div class='alert alert-warning'>配置文件已存在，如需重新安装，请先手动移除配置文件。</div>";
+    } else {
+    ?>
     <form method="post" class="mt-4">
         <div class="form-group">
-            <label for="db_host">数据库主机</label>
-            <input type="text" class="form-control" id="db_host" name="db_host" required>
-        </div>
-        <div class="form-group">
-            <label for="db_user">数据库用户名</label>
-            <input type="text" class="form-control" id="db_user" name="db_user" required>
-        </div>
-        <div class="form-group">
-            <label for="db_pass">数据库密码</label>
-            <input type="password" class="form-control" id="db_pass" name="db_pass">
-        </div>
-        <div class="form-group">
-            <label for="db_name">数据库名称</label>
-            <input type="text" class="form-control" id="db_name" name="db_name" required>
-        </div>
-        <div class="form-group">
-            <label for="secret_key">秘钥</label>
+            <label for="secret_key">秘钥(盐)</label>
             <input type="text" class="form-control" id="secret_key" name="secret_key" required>
         </div>
         <div class="form-group">
@@ -101,9 +88,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <label for="admin_password">管理员密码</label>
             <input type="password" class="form-control" id="admin_password" name="admin_password" required>
         </div>
-
         <button type="submit" class="btn btn-primary">安装</button>
     </form>
+    <?php
+    }
+    ?>
 </div>
 </body>
 </html>
